@@ -48,7 +48,7 @@
         theme: localStorage.getItem('themeColor') || 'indigo',
         searchQuery: '{{ request('search', '') }}',
         editModalOpen: false,
-        editTaskData: { id: '', title: '', category: 'General', priority: 'Medium', due_date: '' },
+        editTaskData: { id: '', title: '', description: '', category: 'General', priority: 'Medium', due_date: '' },
         setTheme(color) {
             this.theme = color;
             localStorage.setItem('themeColor', color);
@@ -84,6 +84,7 @@
     @include('partials.sidebar')
     @php
         $isAnalyticsPage = Auth::user()->isAdmin() && request()->query('section') === 'analytics';
+        $isTaskWorkspace = Auth::user()->isAdmin() && request()->query('section') === 'tasks';
     @endphp
 
     <!-- Main Content Area -->
@@ -104,7 +105,7 @@
              x-init="updateClock(); setInterval(() => updateClock(), 1000)">
             
             <div>
-                <h2 class="text-2xl font-extrabold text-white tracking-tight">{{ $isAnalyticsPage ? 'Statistik & Analitik' : 'Dashboard & Operations' }}</h2>
+                <h2 class="text-2xl font-extrabold text-white tracking-tight">{{ $isAnalyticsPage ? 'Statistik & Analitik' : 'Tugas Saya' }}</h2>
                 <p class="text-xs text-slate-400 mt-1">
                     {{ $isAnalyticsPage ? 'Pantau tren dan riwayat aktivitas pengguna.' : 'Cari, kelola, dan atur target tugas harian kamu' }}
                 </p>
@@ -218,7 +219,39 @@
             </div>
             @endif
         </div>
-        @endunless
+        @endif
+
+        @if(! Auth::user()->isAdmin() && $deadlineNotifications->isNotEmpty())
+        <section class="space-y-3" aria-label="Pengingat deadline">
+            @foreach($deadlineNotifications as $notification)
+                @php
+                    $reminder = $notification->data;
+                @endphp
+                <article class="flex flex-col gap-3 rounded-2xl border {{ ($reminder['reminder_type'] ?? '') === 'overdue' ? 'border-rose-500/30 bg-rose-500/10' : 'border-amber-500/30 bg-amber-500/10' }} p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h3 class="text-sm font-extrabold {{ ($reminder['reminder_type'] ?? '') === 'overdue' ? 'text-rose-300' : 'text-amber-300' }}">
+                            {{ ($reminder['reminder_type'] ?? '') === 'overdue' ? 'Deadline Terlewat!' : 'Pengingat Deadline!' }}
+                        </h3>
+                        <p class="mt-1 text-xs text-slate-300">
+                            {{ ($reminder['reminder_type'] ?? '') === 'overdue' ? 'Tugas' : 'Tugas' }}
+                            <span class="font-bold text-white">{{ $reminder['task_title'] ?? 'Task' }}</span>
+                            {{ ($reminder['reminder_type'] ?? '') === 'overdue' ? 'belum selesai dan sudah melewati batas waktu.' : 'memiliki deadline hari ini. Jangan lupa selesaikan pekerjaanmu.' }}
+                        </p>
+                    </div>
+                    <div class="flex shrink-0 items-center gap-2">
+                        @if(! empty($reminder['task_id']))
+                            <a href="{{ route('tasks.show', $reminder['task_id']) }}" class="rounded-lg border border-slate-700 px-3 py-2 text-xs font-bold text-slate-200 transition hover:bg-slate-800">Lihat Tugas</a>
+                        @endif
+                        <form action="{{ route('notifications.read', $notification->id) }}" method="POST">
+                            @csrf
+                            @method('PATCH')
+                            <button type="submit" class="rounded-lg bg-slate-800/80 px-3 py-2 text-xs font-bold text-slate-300 transition hover:bg-slate-700">Tandai dibaca</button>
+                        </form>
+                    </div>
+                </article>
+            @endforeach
+        </section>
+        @endif
 
         @if($isAnalyticsPage)
         <section id="analytics" class="space-y-4 animate-entry delay-200">
@@ -340,7 +373,7 @@
         @endif
 
         @if(Auth::user()->isAdmin())
-        @unless($isAnalyticsPage)
+        @if(! $isAnalyticsPage && (! Auth::user()->isAdmin() || $isTaskWorkspace))
         <section class="flex-1 space-y-5 animate-entry delay-300">
             <section class="overflow-hidden rounded-2xl border border-amber-500/20 bg-slate-900/60 shadow-2xl backdrop-blur-xl">
                 <div class="flex flex-col gap-3 border-b border-slate-800/80 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
@@ -354,7 +387,10 @@
                     </div>
                 </div>
                 <div class="divide-y divide-slate-800/60">
-                    @forelse($pendingPasswordResetRequests as $resetRequest)
+                    @if($pendingPasswordResetRequests->isEmpty())
+                        <p class="p-8 text-center text-sm text-slate-400">Belum ada request reset password.</p>
+                    @else
+                    @foreach($pendingPasswordResetRequests as $resetRequest)
                         <article class="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <p class="text-sm font-bold text-white">{{ $resetRequest->name ?? 'Nama tidak ditemukan' }}</p>
@@ -370,9 +406,8 @@
                                 <span class="text-xs text-amber-300">Akun member tidak ditemukan</span>
                             @endif
                         </article>
-                    @empty
-                        <p class="p-8 text-center text-sm text-slate-400">Belum ada request reset password.</p>
-                    @endforelse
+                    @endforeach
+                    @endif
                 </div>
             </section>
 
@@ -392,11 +427,23 @@
                 </div>
 
                 <div class="divide-y divide-slate-800/60">
-                    @forelse($pendingFeedbacks as $index => $feedback)
+                    @if($pendingFeedbacks->isEmpty())
+                        <div class="p-12 text-center animate-entry delay-200">
+                            <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400">
+                                <svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                            <p class="text-sm font-bold text-slate-200">Semua feedback sudah dibalas</p>
+                            <p class="mt-1 text-xs text-slate-500">Masukan baru dari pengguna akan muncul di sini.</p>
+                        </div>
+                    @else
+                    @foreach($pendingFeedbacks as $index => $feedback)
                         <article class="group p-5 transition duration-300 hover:bg-slate-800/30 md:p-6 animate-entry" style="animation-delay: {{ $index * 100 + 150 }}ms">
                             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                                 <div class="flex items-center gap-3">
-                                    <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/15 text-sm font-extrabold text-indigo-300 transition duration-300 group-hover:rotate-6 group-hover:scale-110">{{ strtoupper(substr($feedback->user->name, 0, 1)) }}</div>
+                                    @include('partials.profile-avatar', [
+                                        'profileUser' => $feedback->user,
+                                        'avatarClass' => 'flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-indigo-500/15 text-sm font-extrabold text-indigo-300 transition duration-300 group-hover:rotate-6 group-hover:scale-110',
+                                    ])
                                     <div>
                                         <p class="text-sm font-bold text-white">{{ $feedback->user->name }}</p>
                                         <p class="text-[11px] text-slate-500">{{ $feedback->user->email }}</p>
@@ -417,25 +464,25 @@
                                 </div>
                             </form>
                         </article>
-                    @empty
-                        <div class="p-12 text-center animate-entry delay-200">
-                            <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400">
-                                <svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                            </div>
-                            <p class="text-sm font-bold text-slate-200">Semua feedback sudah dibalas</p>
-                            <p class="mt-1 text-xs text-slate-500">Masukan baru dari pengguna akan muncul di sini.</p>
-                        </div>
-                    @endforelse
+                    @endforeach
+                    @endif
                 </div>
             </div>
         </section>
-        @endunless
-        @elseif(! $isAnalyticsPage)
+        @endif
+        @endif
+        @if(! $isAnalyticsPage && (! Auth::user()->isAdmin() || $isTaskWorkspace))
         <!-- Form Input Task -->
         <div class="bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 md:p-6 shadow-2xl animate-entry delay-300">
             <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Buat Task Baru & Target Date</h3>
+            @if($errors->any())
+                <div class="mb-4 rounded-xl border border-rose-500/20 bg-rose-500/10 p-4 text-xs text-rose-300">
+                    <p class="font-bold">Task belum tersimpan. Periksa kembali isian dan lampiran:</p>
+                    <ul class="mt-2 list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                </div>
+            @endif
             
-            <form action="{{ route('tasks.store') }}" method="POST" class="grid grid-cols-1 md:grid-cols-12 gap-3">
+            <form action="{{ route('tasks.store') }}" method="POST" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-12 gap-3">
                 @csrf
                 <div class="md:col-span-4">
                     <input 
@@ -479,7 +526,7 @@
                     </select>
                 </div>
 
-                <div class="md:col-span-2">
+                <div class="md:col-span-1">
                     <button 
                         type="submit" 
                         class="w-full text-white font-bold text-sm py-3.5 rounded-xl shadow-lg hover:scale-[1.03] active:scale-95 transition-all duration-200 flex items-center justify-center gap-1.5"
@@ -495,6 +542,15 @@
                         <span>Tambah</span>
                     </button>
                 </div>
+                <div class="md:col-span-6">
+                    <label for="task-description" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Deskripsi (opsional)</label>
+                    <textarea id="task-description" name="description" rows="2" maxlength="10000" placeholder="Jelaskan pekerjaan yang perlu diselesaikan..." class="w-full resize-y rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:border-indigo-500 focus:outline-none"></textarea>
+                </div>
+                <div class="md:col-span-6">
+                    <label for="task-attachments" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Lampiran (PDF, Office, gambar, teks, CSV, ZIP; maks. 10 MB per file)</label>
+                    <input id="task-attachments" type="file" name="attachments[]" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.txt,.csv,.zip" class="w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2.5 text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-500/15 file:px-3 file:py-2 file:text-xs file:font-bold file:text-indigo-300">
+                    @error('attachments.*')<p class="mt-1 text-xs text-rose-400">{{ $message }}</p>@enderror
+                </div>
             </form>
         </div>
 
@@ -505,14 +561,18 @@
                 <span class="text-xs text-slate-500" x-text="searchQuery ? 'Menampilkan hasil pencarian...' : 'Klik checkbox untuk merayakan task selesai!'"></span>
             </div>
 
-            
-
             <div class="divide-y divide-slate-800/50 overflow-y-auto">
-                @forelse($tasks as $index => $task)
+                <?php if ($tasks->isEmpty()): ?>
+                    <div class="p-16 text-center text-slate-500 animate-entry">
+                        <p class="text-sm font-bold text-slate-400">Belum Ada Target / Task</p>
+                        <p class="text-xs text-slate-600 mt-1">Tambahkan task baru di atas untuk memulai!</p>
+                    </div>
+                <?php else: ?>
+                <?php foreach ($tasks as $index => $task): ?>
                 @php
-                        $dueDate = \Carbon\Carbon::parse($task->due_date);
-                        $isOverdue = !$task->is_completed && $dueDate->isPast() && !$dueDate->isToday();
-                        $isToday = !$task->is_completed && $dueDate->isToday();
+                        $dueDate = $task->due_date;
+                        $isOverdue = !$task->is_completed && $dueDate && $dueDate->lt(today());
+                        $isToday = !$task->is_completed && $dueDate && $dueDate->isToday();
                     @endphp
                     <div 
                         x-show="searchQuery === '' || '{{ strtolower(addslashes($task->title)) }}'.includes(searchQuery.toLowerCase())"
@@ -553,7 +613,7 @@
 
     <!-- Smart Deadline Status Badge -->
     <div class="flex items-center gap-2 mt-1 text-[11px]">
-        <span class="text-slate-400">Target Goal: {{ $dueDate->format('d M Y') }}</span>
+        <span class="text-slate-400">Target Goal: {{ $dueDate?->format('d M Y') ?? 'Tanpa deadline' }}</span>
         
         @if($isOverdue)
             <span class="text-[9px] font-extrabold px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">🔴 OVERDUE</span>
@@ -569,6 +629,9 @@
 
                         <!-- Priority & Delete Button -->
                         <div class="flex items-center gap-3 shrink-0">
+                            <a href="{{ route('tasks.show', $task) }}" class="rounded-lg p-2 text-slate-400 transition hover:bg-blue-500/10 hover:text-blue-300" title="Detail Tugas" aria-label="Detail {{ $task->title }}">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8h.01M11 12h1v4h1m9-4a10 10 0 11-20 0 10 10 0 0120 0z"/></svg>
+                            </a>
                             @if($task->priority == 'High')
                                 <span class="text-[10px] font-extrabold px-3 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 shadow-sm animate-pulse">HIGH</span>
                             @elseif($task->priority == 'Medium')
@@ -578,7 +641,7 @@
                             @endif
 
                             <!-- Tombol Trigger Modal Edit -->
-                            <button type="button" @click="openEditModal({ id: '{{ $task->id }}', title: '{{ addslashes($task->title) }}', category: '{{ $task->category ?? 'General' }}', priority: '{{ $task->priority }}', due_date: '{{ $task->due_date }}' })" 
+                            <button type="button" @click="openEditModal(@js(['id' => (string) $task->id, 'title' => $task->title, 'description' => $task->description ?? '', 'category' => $task->category ?? 'General', 'priority' => $task->priority, 'due_date' => $task->due_date?->format('Y-m-d')]))"
                                     class="p-2 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-xl transition-all" title="Edit Task">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </button>
@@ -592,19 +655,14 @@
                             </form>
                         </div>
                     </div>
-                @empty
-                    <div class="p-16 text-center text-slate-500 animate-entry">
-                        <p class="text-sm font-bold text-slate-400">Belum Ada Target / Task</p>
-                        <p class="text-xs text-slate-600 mt-1">Tambahkan task baru di atas untuk memulai!</p>
-                    </div>
-                @endforelse
+                <?php endforeach; endif; ?>
             </div>
         </div>
         @endif
 
     </main>
     <!-- ✏️ Inline Edit Task Modal -->
-    @if(!Auth::user()->isAdmin())
+    @if(! Auth::user()->isAdmin() || $isTaskWorkspace)
     <div x-show="editModalOpen" x-transition.opacity class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4" style="display: none;">
         <div @click.away="editModalOpen = false" class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative">
             <h3 class="text-base font-bold text-white mb-4">Edit Task & Target Goal</h3>
@@ -614,6 +672,10 @@
                 <div>
                     <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Judul Task</label>
                     <input type="text" name="title" x-model="editTaskData.title" required class="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Deskripsi</label>
+                    <textarea name="description" x-model="editTaskData.description" rows="3" maxlength="10000" class="w-full resize-y bg-slate-950 border border-slate-800 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500"></textarea>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
@@ -686,7 +748,23 @@
         });
 
         @if(session('success'))
-            Toast.fire({ icon: 'success', title: '{{ session('success') }}' });
+            @if(session('createdTaskUrl'))
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: @js(session('success')),
+                    background: '#0f172a',
+                    color: '#f8fafc',
+                    showConfirmButton: true,
+                    confirmButtonText: 'Lihat Detail Tugas',
+                    customClass: { popup: 'border border-slate-800 rounded-xl shadow-xl' }
+                }).then(result => {
+                    if (result.isConfirmed) window.location.href = @js(session('createdTaskUrl'));
+                });
+            @else
+                Toast.fire({ icon: 'success', title: @js(session('success')) });
+            @endif
         @endif
     document.addEventListener("DOMContentLoaded", function () {
         flatpickr("#due_date_picker", {

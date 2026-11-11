@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -28,6 +29,12 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
+        ActivityLog::create([
+            'user_id' => $user->id,
+            'type' => 'registered',
+            'action' => 'mendaftar ke TaskSpace',
+        ]);
+
         Auth::login($user);
         return redirect()->route('tasks.index');
     }
@@ -42,6 +49,12 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials + ['is_suspended' => false])) {
             $request->session()->regenerate();
+            ActivityLog::create([
+                'user_id' => $request->user()->id,
+                'type' => 'logged_in',
+                'action' => 'login ke TaskSpace',
+            ]);
+
             return redirect()->intended('/');
         }
 
@@ -51,6 +64,12 @@ class AuthController extends Controller
     // Proses Logout
     public function logout(Request $request)
     {
+        ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'type' => 'logged_out',
+            'action' => 'logout dari TaskSpace',
+        ]);
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

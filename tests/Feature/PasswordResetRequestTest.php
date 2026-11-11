@@ -67,14 +67,6 @@ class PasswordResetRequestTest extends TestCase
         $resetRequest = PasswordResetRequest::firstOrFail();
 
         $this->actingAs($admin)
-            ->get(route('tasks.index'))
-            ->assertOk()
-            ->assertSee('Request Password')
-            ->assertSee('1 menunggu')
-            ->assertSee('Member')
-            ->assertSee($user->email);
-
-        $this->actingAs($admin)
             ->get(route('admin.password-requests.index'))
             ->assertOk()
             ->assertSee('Request Reset Password')

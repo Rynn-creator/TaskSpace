@@ -164,12 +164,15 @@ class AdminUsersTest extends TestCase
         $user->feedbacks()->create(['message' => 'Needs reply']);
 
         $this->actingAs($admin)
-            ->get(route('tasks.index'))
+            ->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('Dashboard')
+            ->assertSee('Dashboard Admin')
+            ->assertSee('Tugas Saya')
             ->assertSee('Feedback Masuk')
             ->assertSee('Request Password')
             ->assertSee('Pengguna')
+            ->assertDontSee('MENU UTAMA')
+            ->assertDontSee('>Dashboard</a>', false)
             ->assertSee('1')
             ->assertDontSee('Filter Tasks')
             ->assertDontSee('Pending');

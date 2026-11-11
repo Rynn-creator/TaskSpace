@@ -35,9 +35,25 @@ class FeedbackController extends Controller
     {
         abort_unless($request->user()->isAdmin(), 403);
 
-        $feedbacks = Feedback::with('user')->latest()->get();
+        $status = $request->query('status', 'all');
+        $query = Feedback::with('user:id,name,email,profile_photo_path');
 
-        return view('feedback.admin', compact('feedbacks'));
+        if ($status === 'pending') {
+            $query->whereNull('admin_reply');
+        } elseif ($status === 'replied') {
+            $query->whereNotNull('admin_reply');
+        } else {
+            $status = 'all';
+        }
+
+        $feedbacks = $query->latest()->paginate(12)->withQueryString();
+        $feedbackCounts = [
+            'all' => Feedback::count(),
+            'pending' => Feedback::whereNull('admin_reply')->count(),
+            'replied' => Feedback::whereNotNull('admin_reply')->count(),
+        ];
+
+        return view('feedback.admin', compact('feedbacks', 'feedbackCounts', 'status'));
     }
 
     public function reply(Request $request, Feedback $feedback)

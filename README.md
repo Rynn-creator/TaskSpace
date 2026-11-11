@@ -34,6 +34,26 @@ Untuk mengirim email sungguhan, atur `APP_URL` ke alamat publik aplikasi serta k
 
 Setelah mengambil perubahan terbaru, jalankan `php artisan migrate` untuk membuat tabel request password.
 
+## Task Management, Lampiran, dan Pengingat Deadline
+
+Task dapat memiliki deskripsi dan beberapa lampiran private. Tipe yang diterima: PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, JPG/JPEG, PNG, WEBP, TXT, CSV, dan ZIP; batasnya 10 MB per file. Lampiran disimpan pada Laravel local disk dan hanya dapat diunduh atau dihapus oleh pemilik task.
+
+Setelah mengambil perubahan ini, terapkan migration tambahan untuk deskripsi task, metadata lampiran, dan notifikasi database:
+
+```shell
+php artisan migrate
+```
+
+Reminder deadline disimpan sebagai notifikasi database dan ditampilkan pada dashboard. Scheduler memproses task yang deadline-nya hari ini atau sudah terlewat setiap hari pukul 08.00 menurut timezone aplikasi. Atur `APP_TIMEZONE=Asia/Jakarta` pada `.env` untuk waktu lokal Indonesia, kemudian jalankan scheduler selama pengembangan lokal:
+
+```shell
+php artisan schedule:work
+```
+
+Untuk memproses reminder sekali secara manual, jalankan `php artisan tasks:send-deadline-reminders`. Pengingat bersifat idempoten untuk setiap task, jenis reminder, dan tanggal deadline.
+
+Pengunjung yang belum login akan melihat landing page TaskSpace di `/`; pengguna yang sudah login tetap diarahkan ke dashboard tugas.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

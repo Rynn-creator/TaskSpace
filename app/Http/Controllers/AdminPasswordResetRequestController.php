@@ -18,7 +18,7 @@ class AdminPasswordResetRequestController extends Controller
             ->latest()
             ->paginate(20);
 
-        return view('admin.password-reset-requests', compact('requests'));
+        return view('admin.password-requests', compact('requests'));
     }
 
     public function sendResetLink(Request $request, PasswordResetRequest $passwordResetRequest)

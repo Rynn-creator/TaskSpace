@@ -12,6 +12,7 @@ class Task extends Model
     protected $fillable = [
         'user_id', 
         'title', 
+        'description',
         'category',
         'priority', 
         'due_date', 
@@ -26,5 +27,10 @@ class Task extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function attachments()
+    {
+        return $this->hasMany(TaskAttachment::class);
     }
 }

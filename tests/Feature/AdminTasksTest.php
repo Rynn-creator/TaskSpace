@@ -39,7 +39,8 @@ class AdminTasksTest extends TestCase
             ->get('/')
             ->assertOk()
             ->assertSee('My task')
-            ->assertDontSee('Other task');
+            ->assertDontSee('Other task')
+            ->assertDontSee('MENU UTAMA');
 
         $this->get(route('admin.user-presence'))->assertForbidden();
     }
@@ -63,7 +64,7 @@ class AdminTasksTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get('/')
+            ->get(route('tasks.index', ['section' => 'tasks']))
             ->assertOk()
             ->assertSee('Admin task')
             ->assertDontSee('Other user task');
@@ -110,7 +111,7 @@ class AdminTasksTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get('/')
+            ->get(route('tasks.index', ['section' => 'tasks']))
             ->assertOk()
             ->assertSee('Total User')
             ->assertSee('Online')
@@ -214,15 +215,30 @@ class AdminTasksTest extends TestCase
         $admin = User::factory()->create();
         $admin->forceFill(['role' => 'admin'])->save();
 
-        foreach (['/', '/admin/users', '/admin/password-reset-requests', '/admin/feedback'] as $path) {
+        foreach (['/admin', '/admin/users', '/admin/password-reset-requests', '/admin/feedback'] as $path) {
             $this->actingAs($admin)
                 ->get($path)
                 ->assertOk()
                 ->assertSee('Statistik & Log')
                 ->assertSee('Feedback Masuk')
                 ->assertSee('Request Password')
-                ->assertSee('Pengguna');
+                ->assertSee('Pengguna')
+                ->assertSee('Tugas Saya')
+                ->assertDontSee('MENU UTAMA')
+                ->assertDontSee('>Dashboard</a>', false)
+                ->assertSeeInOrder([
+                    'Dashboard Admin',
+                    'Tugas Saya',
+                    'Statistik &amp; Log',
+                    'Kelola Pengguna',
+                    'Feedback Masuk',
+                    'Request Password',
+                ], false);
         }
+
+        $this->actingAs($admin)
+            ->get(route('tasks.index'))
+            ->assertRedirect(route('admin.dashboard'));
     }
 
     public function test_admin_dashboard_and_analytics_show_their_own_sections(): void
@@ -231,15 +247,19 @@ class AdminTasksTest extends TestCase
         $admin->forceFill(['role' => 'admin'])->save();
 
         $this->actingAs($admin)
-            ->get(route('tasks.index'))
+            ->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('Total User')
-            ->assertSee('Request Reset Password')
-            ->assertSee('Feedback Menunggu Balasan')
-            ->assertDontSee('Tren Aktivitas')
-            ->assertDontSee('Kategori Task')
-            ->assertDontSee('Level Prioritas')
-            ->assertSee('Tema:');
+            ->assertSee('Dashboard Admin')
+            ->assertSee('Total pengguna')
+            ->assertDontSee('Dashboard & Operations')
+            ->assertSee('border border-violet-500/30 bg-violet-500/10 text-violet-300');
+
+        $this->get(route('tasks.index', ['section' => 'tasks']))
+            ->assertOk()
+            ->assertSee('Tugas Saya')
+            ->assertSee('Buat Task Baru')
+            ->assertDontSee('Dashboard & Operations')
+            ->assertSee('border border-blue-500/20 bg-blue-500/10 text-blue-300');
 
         $this->get(route('tasks.index', ['section' => 'analytics']))
             ->assertOk()

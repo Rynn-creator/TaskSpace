@@ -66,7 +66,7 @@ class FeedbackTest extends TestCase
             ->assertRedirect(route('admin.feedback.index'));
     }
 
-    public function test_admin_dashboard_shows_unanswered_feedback_instead_of_task_manager(): void
+    public function test_admin_can_review_unanswered_feedback_from_feedback_page(): void
     {
         $admin = User::factory()->create();
         $admin->forceFill(['role' => 'admin'])->save();
@@ -84,24 +84,24 @@ class FeedbackTest extends TestCase
             'due_date' => '2026-12-01',
         ]);
 
+        $feedbackPage = route('admin.feedback.index', ['status' => 'pending']);
         $this->actingAs($admin)
-            ->get('/')
+            ->get($feedbackPage)
             ->assertOk()
-            ->assertSee('Feedback Menunggu Balasan')
+            ->assertSee('Feedback Masuk')
             ->assertSee('Tolong tambahkan mode kalender')
             ->assertSee($user->name)
-            ->assertSee('1 belum dibalas')
+            ->assertSee('Menunggu balasan')
             ->assertDontSee('Feedback yang sudah dijawab')
             ->assertDontSee('Buat Task Baru & Target Date')
-            ->assertDontSee('Simpan Perubahan')
             ->assertDontSee('Admin private task');
 
         $this->actingAs($admin)
-            ->from('/')
+            ->from($feedbackPage)
             ->post(route('admin.feedback.reply', $pending), [
                 'admin_reply' => 'Terima kasih, masukannya kami terima.',
             ])
-            ->assertRedirect('/');
+            ->assertRedirect($feedbackPage);
 
         $this->assertDatabaseHas('feedbacks', [
             'id' => $pending->id,
